@@ -1,0 +1,338 @@
+\documentclass{beamer}
+\usetheme{Madrid}
+\usepackage[T1,T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage{minted}
+\usepackage{graphicx}
+\usepackage{svg}
+\usepackage{dirtree}
+\setbeamertemplate{navigation symbols}{} %hide navigations, do not need in thesis
+\setbeamerfont{author}{size=\tiny,series=\mdseries}
+\usecolortheme{beaver}
+\date{}
+% !TeX TXS-program:compile = txs:///pdflatex/[--shell-escape]
+\author[]{\texorpdfstring{
+\footnotesize 
+\begin{minipage}{.5\textwidth}
+\centering
+Выполнил студент группы \\ 
+ИВТ-42-БО \\
+Коляда М.М.
+\end{minipage}%  
+\begin{minipage}{.5\textwidth}
+\centering
+Научный руководитель \\
+Доктор физ.-мат наук \\
+Глызин C.Д.
+\end{minipage}}{}}
+\institute{ЯрГУ им. П. Г. Демидова}
+\setbeamerfont{title}{size=\small}
+\title[развёртывание кластера slurm]{Развёртывание высокопроизводительного кластера с использованием менеджера ресурсов Slurm и контейнеров Singularity}
+%
+%
+%
+%
+\begin{document}
+\begin{frame}[plain,noframenumbering]
+	\titlepage
+\end{frame}
+
+\begin{frame}{Постановка задачи}
+	\begin{itemize}[<+->]
+	\item Автоматизировать развёртывание кластера
+	\item Создать образы ОС для запуска вычислительных задач в контейнерах
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Используемый стек}
+\begin{figure}
+    \flushright
+    \includegraphics[scale=0.09]{salt-logo.png}
+\end{figure}
+
+\begin{figure}
+    \flushleft
+    \includegraphics[scale=0.03]{Slurm_logo.png}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includesvg[scale=0.3]{singularity-logo.svg}
+\end{figure}
+    
+\end{frame}
+
+\begin{frame}{Архитектура и сервисы кластера}	
+
+\end{frame}
+
+\begin{frame}[plain]
+\begin{figure}
+    \centering
+    \includegraphics[width=6cm, height=6cm]{cluster1.png}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Пример пользователя (ldap)}
+\begin{minted}{shell}	
+	dn: uid=ikrasnov,ou=people,dc=int,dc=corp7
+	changetype: add
+	objectClass: inetOrgPerson
+	objectClass: posixAccount
+	objectClass: shadowAccount
+	uid: ikrasnov
+	cn: Ignat Krasnov
+	displayName: Ignat Krasnov
+	sn: Krasnov
+	givenName: Ignat
+	uidNumber: 10025
+	gidNumber: 5000
+	loginShell: /bin/bash
+	homeDirectory: /clusterhome/ikrasnov
+\end{minted}
+\end{frame}
+
+\begin{frame}{Архитектура кластера (ПО)}
+
+\end{frame}
+
+\begin{frame}[plain]
+\begin{figure}
+    \centering
+    \includegraphics[width=8cm, height=8cm]{cluster2.png}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Структура корня saltstack}
+\begin{figure}[H]
+ 
+\begin{minipage}[t]{0.3\linewidth}
+\dirtree{%
+		.1 /srv/salt/.
+		.2 conf.
+		.3 auks.acl.
+		.3 auks.conf.
+		.3 krb5.conf.
+		.3 plugstack\_auks.conf.
+		.3 plugstack.conf.
+		.3 slurm.conf.
+		.3 slurmdbd.conf.
+		.3 sssd.conf.
+}                
+\end{minipage}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Структура корня saltstack (keytabs)}
+\begin{figure}[H]
+ 
+\begin{minipage}[t]{0.3\linewidth}
+\dirtree{%
+	.1 /srv/salt/.
+	.2 keytabs.
+    .3 control1.keytab.
+    .3 cnode1.keytab.
+    .3 \ldots{}.
+    .3 dnode18.keytab.
+}                
+\end{minipage}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Структура корня saltstack (systemd services)}
+\begin{figure}[H]
+ 
+\begin{minipage}[t]{0.3\linewidth}
+\dirtree{%
+	.1 /srv/salt/.
+    .2 services.
+    .3 auksdrenewer.service.
+    .3 auksd.service.
+    .3 aukspriv.service.
+    .3 slurmctld.service.
+    .3 slurmdbd.service.
+    .3 slurmd.service.
+}                
+\end{minipage}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Структура корня saltstack (state файлы)}
+\begin{figure}[H]
+ 
+\begin{minipage}[t]{0.3\linewidth}
+\dirtree{%
+	.1 /srv/salt/.
+	.2 sls.
+    .3 control-node.sls.
+    .3 cuda10.sls.
+    .3 cuda8.sls.
+    .3 mellanox-needed.sls.
+    .3 setup.sls.
+    .3 slurmd.sls.
+    .2 ssl.
+    .3 salt-nodes.crt.
+    .2 top.sls.
+}                
+\end{minipage}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{корневой файл saltstack (top.sls)}
+	\begin{figure}[H]
+\centering
+\begin{minted}[tabsize=2,breaklines,fontsize=\small]{yaml}
+base:
+    '*':
+        - sls.setup
+    'cnode(01|02|03|04|05|06|07).int.corp7':
+        - match: pcre
+        - sls.cuda8
+    'control1.int.accelcomp.org':
+        - match: pcre
+        - sls.control-node
+        - sls.cuda10
+        - sls.mellanox-needed
+       ....
+    'dnode(09|10|11|12|13|14).int.corp7':
+        - match: pcre
+        - sls.mellanox-needed
+    'not control1.int.corp7':
+        - match: compound
+        - sls.slurmd
+\end{minted}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Пример установки mellanox infiniband}
+
+\begin{figure}[H]
+\begin{minted}[fontsize=\footnotesize, breaklines]{yaml}
+mellanox specified packages:
+    pkg.installed:
+        - pkgs:
+           - m4 
+           - swig
+           - autoconf
+           ...
+
+unpack mlx_ofed:
+    archive.extracted:
+        - name: /usr/local
+        - source: /clusterhome/install/saltcluster/MLNX_OFED_LINUX-4.6.tar.gz
+
+install mlx_ofed:
+    cmd.run:
+        - name: perl /usr/local/MLNX_OFED/mlnxofedinstall --force
+        - runas: root
+        - unless:
+            - ls /usr/sbin/iblinkinfo
+\end{minted}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Пример создания пользователя}
+\begin{minted}[tabsize=2,breaklines]{yaml}
+slurm_user:
+    user.present:
+        - name: slurm
+        - fullname: Slurm
+        - shell: /bin/false
+        - home: /home/slurm
+        - uid: 64030
+        - gid_from_name: True
+        - require:
+             - group: slurm
+\end{minted}    
+\end{frame}
+
+\begin{frame}[fragile]{slurm.conf}
+
+\begin{minted}[linenos,tabsize=2,breaklines,fontsize=\footnotesize]{text}
+SlurmctldHost=control1
+MpiDefault=pmix_v3
+PluginDir=/usr/local/slurm/lib/slurm
+SlurmdPort=6818
+SlurmdSpoolDir=/home/slurm/slurmd
+SlurmUser=slurm
+StateSaveLocation=/home/slurm
+SlurmctldDebug=debug5
+SlurmctldLogFile=/tmp/slurmctld.log
+SlurmdDebug=debug5
+SlurmdLogFile=/tmp/slurmd.log
+...
+NodeName=dnode[01-04] RealMemory=64000 Sockets=2 CoresPerSocket=10 ThreadsPerCore=1
+NodeName=dnode[05-08] RealMemory=128000 Sockets=2 CoresPerSocket=10 ThreadsPerCore=1
+NodeName=dnode[09-14] RealMemory=16000 Sockets=2 CoresPerSocket=6 ThreadsPerCore=1 
+NodeName=cnode[1-7] RealMemory=64000 Sockets=2 CoresPerSocket=8 ThreadsPerCore=1
+PartitionName=all Nodes=cnode[1-7],dnode[01-14]
+PartitionName=uni Nodes=cnode[1-7] MaxTime=INFINITE State=UP
+\end{minted}
+    
+\end{frame}
+
+\begin{frame}[fragile]{Процесс развёртывания}
+\centering
+\begin{minted}[tabsize=2,breaklines,fontsize=\small]{yaml}
+salt '*' state.apply && salt '*' system.reboot
+\end{minted}
+\end{frame}
+
+\begin{frame}{Немного о singularity}
+ \begin{figure}
+    \includegraphics[scale=0.4]{singularity-scheme.png}
+\end{figure}   
+\end{frame}
+
+\begin{frame}[fragile]{Создание образа контейнера}
+\begin{minted}[fontsize=\tiny]{shell}
+FROM ubuntu:16.04
+
+RUN apt-get update
+RUN echo \"deb [trusted=yes] http://192.168.1.3 xenial main\" >> /etc/apt/source.list
+# sync ppa in
+RUN apt get-update
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y libevent-*
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y cuda-10.1
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y openmpi4 pmix
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{slurm accounting}
+ \begin{figure}[H]
+\centering
+\begin{minted}{shell}
+      User    Account  Partition                    QOS 
+---------- ---------- ---------- ---------------------------------------- 
+   sglyzin    regular      debug    normal,short_term,standby 
+   zlogene      power               normal,standby 
+   zlogene    regular      debug    normal,short_term,standby 
+   zlogene    regular               normal,short_term,standby 
+   zlogene    regular        uni    normal,short_term,standby 
+\end{minted}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Пример запуска задачи}
+\$ srun -p uni -A power singularity exec docker://storage1.int.accelcomp.org/dgl-ubuntu:latest hostname
+
+\begin{minted}{shell}
+Hello world from processor cnode01, rank 1 out of 4 processors
+Hello world from processor cnode02, rank 0 out of 4 processors
+Hello world from processor cnode03, rank 3 out of 4 processors
+...
+Hello world from processor cnode07, rank 2 out of 4 processors
+\end{minted}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+Спасибо за внимание!
+\end{frame}
+
+%
+%
+%
+%
+\end{document}
